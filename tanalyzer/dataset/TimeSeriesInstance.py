@@ -14,11 +14,11 @@ class TimeSeriesInstance:
         self.series_range = {'from': from_index, 'to': None}
         if dataframe is not None and isinstance(dataframe, pandas.DataFrame):
             if 0 <= from_index < len(dataframe.index):
-                an_index = (dataframe[label_column].values != normal_tag).argmax()
+                an_index = (dataframe[label_column].values[from_index:] != normal_tag).argmax() + from_index
                 self.anomaly_indexes = [i for i in range(an_index, an_index + an_duration)]
                 self.anomaly_tag = dataframe[label_column][an_index]
                 self.series_range['to'] = an_index + an_duration + cooldown
-                self.series = dataframe.iloc[from_index:self.series_range['to'], :]
+                self.series = dataframe.iloc[from_index:self.series_range['to']-cooldown, :]
             else:
                 print('Start index %d of the timeseries is not valid' % from_index)
         else:

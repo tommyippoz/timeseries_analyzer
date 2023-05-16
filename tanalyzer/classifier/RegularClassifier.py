@@ -100,7 +100,7 @@ class RegularClassifier:
         """
         Returns the name of the classifier (as string)
         """
-        pass
+        return self.model.__class__.__name__
 
 
 class UnsupervisedClassifier(RegularClassifier):

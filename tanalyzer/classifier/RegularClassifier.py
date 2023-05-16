@@ -9,6 +9,7 @@ from autogluon.tabular import TabularPredictor
 from pytorch_tabnet.tab_model import TabNetClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
 
@@ -38,6 +39,7 @@ class RegularClassifier:
         :param x_train: feature set
         :param y_train: labels
         """
+        x_train = self.preprocess_x(x_train)
         if y_train is not None:
             if isinstance(x_train, pd.DataFrame):
                 self.model.fit(x_train.to_numpy(), y_train)
@@ -65,6 +67,7 @@ class RegularClassifier:
         Method to compute predict of a classifier
         :return: array of predicted class
         """
+        x_test = self.preprocess_x(x_test)
         if isinstance(x_test, pandas.DataFrame):
             x_t = x_test.to_numpy()
         else:
@@ -76,6 +79,7 @@ class RegularClassifier:
         Method to compute probabilities of predicted classes
         :return: array of probabilities for each classes
         """
+        x_test = self.preprocess_x(x_test)
         return self.model.predict_proba(x_test)
 
     def predict_confidence(self, x_test):
@@ -83,6 +87,7 @@ class RegularClassifier:
         Method to compute confidence in the predicted class
         :return: -1 as default, value if algorithm is from framework PYOD
         """
+        x_test = self.preprocess_x(x_test)
         return -1
 
     def compute_feature_importances(self):
@@ -101,6 +106,15 @@ class RegularClassifier:
         Returns the name of the classifier (as string)
         """
         return self.model.__class__.__name__
+
+    def preprocess_x(self, x_set):
+        """
+        Used if additional features are automatically crafted by the classifier
+        Default is 'no preprocess'
+        :param x_set:
+        :return:
+        """
+        return x_set
 
 
 class UnsupervisedClassifier(RegularClassifier):
@@ -136,7 +150,7 @@ class UnsupervisedClassifier(RegularClassifier):
     def predict(self, x_test):
         y_pred = super().predict(x_test)
         if self.revert:
-            y_pred = abs(1-y_pred)
+            y_pred = abs(1 - y_pred)
         return y_pred
 
     def predict_confidence(self, x_test):
@@ -155,22 +169,37 @@ class XGB(RegularClassifier):
     Wrapper for the XGBoost  algorithm from xgboost library
     """
 
-    def __init__(self, n_trees=None, metric=None):
+    def __init__(self, n_trees=100, metric=None):
         self.metric = metric
-        if n_trees is None:
-            RegularClassifier.__init__(self, XGBClassifier(use_label_encoder=False,
-                                                           eval_metric=(
-                                                               self.metric if self.metric is not None else "logloss")))
-        else:
-            RegularClassifier.__init__(self, XGBClassifier(n_estimators=n_trees, use_label_encoder=False,
-                                                           eval_metric=(
-                                                               self.metric if self.metric is not None else "logloss")))
+        self.le = LabelEncoder()
+        RegularClassifier.__init__(self, XGBClassifier(n_estimators=n_trees,
+                                                       eval_metric=(
+                                                           self.metric if self.metric is not None else "logloss")))
 
     def save_model(self, filename):
         self.model.save_model(filename)
 
     def classifier_name(self):
         return "XGBoost"
+
+    def fit(self, x_train, y_train=None):
+        """
+        Fits a Classifier
+        :param x_train: feature set
+        :param y_train: labels
+        """
+        y_train = self.le.fit_transform(y_train)
+        super().fit(x_train, y_train)
+
+    def predict(self, x_test):
+        """
+        Method to compute predict of a classifier
+        :return: array of predicted class
+        """
+        unencoded = super().predict(x_test)
+        return self.le.inverse_transform(unencoded)
+
+
 
 
 class TabNet(RegularClassifier):
@@ -339,4 +368,3 @@ class LogisticReg(RegularClassifier):
 
     def classifier_name(self):
         return "LogisticRegression"
-

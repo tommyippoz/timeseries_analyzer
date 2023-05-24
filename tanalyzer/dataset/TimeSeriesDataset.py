@@ -1,10 +1,7 @@
-import random
-
 import numpy
 import pandas
 import sklearn.metrics
 
-from tanalyzer.dataset.TimeSeriesInstance import TimeSeriesInstance
 from tanalyzer.utils import clean_dataset, extract_timeseries, compute_ts_gain
 
 
@@ -37,10 +34,9 @@ class TimeSeriesDataset:
         self.train_ts = None
         self.test_ts = None
 
-    def preprocess(self, normalize: bool = True, split: float = 0.5, avoid_anomalies: list = []):
+    def preprocess(self, normalize: bool = False, split: float = 0.5):
         """
         Preprocesses dataset and prepares it for analyses
-        :param avoid_anomalies: list of tags of anomalies to be discarded when creating train and test splits
         :param normalize: True if feature data has to be normalized
         :param split: float that sets the percentage of train-test split
         """
@@ -61,11 +57,25 @@ class TimeSeriesDataset:
         self.test_ts = self.timeseries[int(len(self.timeseries) * split):]
         return self.train_ts, self.test_ts
 
-    def get_data(self, data_type='train', augmentation=None):
+    def get_data(self, data_type='train', augmentation=None) -> (pandas.DataFrame, numpy.array, list):
+        """
+        Gets dataset data related to either train or test portion.
+        Requires preprocessing first
+        :param data_type: train or test data
+        :param augmentation: tag that specifies if data has to be extracted as it is or using some specific strategy
+        :return: required information
+        """
         series_group = self.train_ts if data_type == 'train' else self.test_ts
-        if augmentation == 'firstorder':
+        if augmentation in {'firstorder', 'fo', '1o'}:
             series_data = [ds.get_firstorder_timeseries() for ds in series_group]
+        elif augmentation in {'secondorder', 'so', '2o'}:
+            series_data = [ds.get_secondorder_timeseries() for ds in series_group]
+        elif augmentation is not None and 'movingavg_' in augmentation:
+            n_obs = augmentation.split('_')[0].strip()
+            n_obs = int(n_obs) if n_obs.isdigit() else 3
+            series_data = [ds.get_movingavg_timeseries(n_obs) for ds in series_group]
         else:
+            # Otherwise, just return features that you have
             series_data = [ds.get_timeseries() for ds in series_group]
         series_data = pandas.concat(series_data, ignore_index=True)
         series_mapping = ['ts_' + data_type + '_' + str(i)
@@ -75,15 +85,22 @@ class TimeSeriesDataset:
         x_data = series_data.drop(columns=[self.label_name])
         return x_data, y_data, series_mapping
 
-    def compute_metrics(self, test_ts, y_pred, y_test):
+    def compute_metrics(self, test_ts, y_pred: list, y_test: list) -> dict:
+        """
+        COmputes metrics for a set of predictions of a classifier
+        :param test_ts: the timeseries in the test set
+        :param y_pred: array of predictions
+        :param y_test: array of labels
+        :return: dict of metric values
+        """
         m_dict = {}
         if len(numpy.unique(y_test)) > 2:
-            multi_dict = sklearn.metrics.classification_report(y_test, y_pred, output_dict=True)
+            multi_dict = sklearn.metrics.classification_report(y_test, y_pred, output_dict=True, zero_division=0)
             for wk in multi_dict['weighted avg']:
                 m_dict[wk] = multi_dict['weighted avg'][wk]
         else:
-            m_dict['p'] = sklearn.metrics.precision_score(y_test, y_pred)
-            m_dict['r'] = sklearn.metrics.recall_score(y_test, y_pred)
+            m_dict['p'] = sklearn.metrics.precision_score(y_test, y_pred, zero_division=0)
+            m_dict['r'] = sklearn.metrics.recall_score(y_test, y_pred, zero_division=0)
             m_dict['f1'] = sklearn.metrics.f1_score(y_test, y_pred)
         m_dict['fpr'] = sum((y_test == self.normal_class) * (y_pred != self.normal_class)) \
                         / sum(y_test == self.normal_class)

@@ -1,6 +1,7 @@
 import numpy
 import pandas
 import pandas as pd
+from sklearn.tree import DecisionTreeRegressor
 
 
 class TimeSeriesClassifier:
@@ -91,4 +92,50 @@ class TimeSeriesClassifier:
         """
         Returns the name of the classifier (as string)
         """
+        pass
+
+
+class FeatureRegressor(TimeSeriesClassifier):
+
+    def __init__(self, clf_model, reg_model=DecisionTreeRegressor()):
+        """
+        Constructor of a generic Classifier
+        :param model: model to be used as Classifier
+        """
+        super().__init__(clf_model)
+        self.reg_model = reg_model
+        self.regressors = None
+
+    def fit(self, x_train, y_train=None):
+        """
+        Fits a Classifier
+        :param x_train: feature set
+        :param y_train: labels
+        """
+
+        super().fit(x_train, y_train)
+
+    def predict(self, x_test):
+        """
+        Method to compute predict of a classifier
+        :return: array of predicted class
+        """
+
+        super().predict(x_test)
+
+    def predict_proba(self, x_test):
+        """
+        Method to compute probabilities of predicted classes
+        :return: array of probabilities for each classes
+        """
+
+        return super().predict_proba(x_test)
+
+    def update_set(self, x_set):
+        """
+        To be overridden by classes
+        :param x_set:
+        :return:
+        """
+
         pass
